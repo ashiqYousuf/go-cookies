@@ -20,7 +20,8 @@ func setCookieHandler(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	}
 
-	err := cookies.WriteSigned(w, cookie, secretKey)
+	err := cookies.WriteEncrypted(w, cookie, secretKey)
+	// err := cookies.WriteSigned(w, cookie, secretKey)
 	if err != nil {
 		log.Println(err)
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -31,7 +32,8 @@ func setCookieHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getCookieHandler(w http.ResponseWriter, r *http.Request) {
-	value, err := cookies.ReadSigned(r, "exampleCookie", secretKey)
+	value, err := cookies.ReadEncryped(r, "exampleCookie", secretKey)
+	// value, err := cookies.ReadSigned(r, "exampleCookie", secretKey)
 	if err != nil {
 		switch {
 		case errors.Is(err, http.ErrNoCookie):

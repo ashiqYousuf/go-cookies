@@ -1,17 +1,95 @@
 package cookies
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"strings"
 )
 
 var (
 	ErrValueTooLong = errors.New("cookie value too long")
 	ErrInvalidValue = errors.New("invalid cookie value")
 )
+
+func WriteEncrypted(w http.ResponseWriter, cookie http.Cookie, secretKey []byte) error {
+	// Create a new AES cipher block from the secret key.
+	block, err := aes.NewCipher(secretKey)
+	if err != nil {
+		return err
+	}
+
+	// Wrap the cipher block in Galois Counter Mode.
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return err
+	}
+
+	nonce := make([]byte, aesGCM.NonceSize())
+	_, err = io.ReadFull(rand.Reader, nonce)
+	if err != nil {
+		return err
+	}
+
+	plaintext := fmt.Sprintf("%s:%s", cookie.Name, cookie.Value)
+	// Encrypt the data using aesGCM.Seal().
+	// "{nonce}{encrypted plaintext data}" form of encryped data.
+	encrypedValue := aesGCM.Seal(nonce, nonce, []byte(plaintext), nil)
+
+	cookie.Value = string(encrypedValue)
+
+	return Write(w, cookie)
+}
+
+func ReadEncryped(r *http.Request, name string, secretKey []byte) (string, error) {
+	encrypedValue, err := Read(r, name)
+	if err != nil {
+		return "", err
+	}
+
+	block, err := aes.NewCipher(secretKey)
+	if err != nil {
+		return "", err
+	}
+
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	nonceSize := aesGCM.NonceSize()
+
+	if len(encrypedValue) < nonceSize {
+		return "", ErrInvalidValue
+	}
+
+	nonce := encrypedValue[:nonceSize]
+	cipherText := encrypedValue[nonceSize:]
+
+	// Use aesGCM.Open() to decrypt and authenticate the data.
+	plaintext, err := aesGCM.Open(nil, []byte(nonce), []byte(cipherText), nil)
+	if err != nil {
+		return "", ErrInvalidValue
+	}
+
+	expectedName, value, ok := strings.Cut(string(plaintext), ":")
+	if !ok {
+		return "", ErrInvalidValue
+	}
+
+	if expectedName != name {
+		return "", ErrInvalidValue
+	}
+
+	return value, nil
+}
 
 func WriteSigned(w http.ResponseWriter, cookie http.Cookie, secretKey []byte) error {
 	// Calculate a HMAC signature of the cookie name and value, using SHA256 and

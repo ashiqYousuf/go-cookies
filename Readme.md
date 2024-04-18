@@ -35,3 +35,5 @@ We should not trust cookie data as they are stored on the client & its straightf
 
 
 When we receive the cookie back from the client, we can recalculate the HMAC signature from the cookie name and original value, and check that the recalculated HMAC signature matches the signature at the start of the received cookie. If they match, it confirms the integrity of the cookie.
+
+But if you do want to prevent the client from being able to read the cookie data, then we need to encrypt the data before writing it.
