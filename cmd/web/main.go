@@ -1,11 +1,17 @@
 package main
 
 import (
+	"encoding/gob"
 	"encoding/hex"
 	"flag"
 	"log"
 	"net/http"
 )
+
+type User struct {
+	Name string
+	Age  int
+}
 
 var secretKey []byte
 
@@ -14,6 +20,9 @@ func main() {
 	secret := flag.String("secret", "13d6b4dff8f84a10851021ec8608f814570d562c92fe6b5ec4c9f595bcb3234b", "Hex string")
 
 	flag.Parse()
+
+	// tell the encoding/gob package about the Go type that we want to encode.
+	gob.Register(&User{})
 
 	var err error
 	secretKey, err = hex.DecodeString(*secret)
